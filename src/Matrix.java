@@ -1,69 +1,155 @@
+import com.sun.nio.sctp.SctpSocketOption;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class Matrix<T> {
-    private final Operator<T> operator;
-    private List<List<T>> matrix;
+public class Matrix {
+    private List<List<ComplexNum>> matrix;
     private int width;
     private int height;
 
-    public Matrix(Operator<T> operator, int width, int height) {
+    public Matrix(int width, int height) {
         this.width = width;
         this.height = height;
-        this.operator = operator;
         this.matrix = createMatrix(width, height);
     }
 
-    public void fill(Supplier<T> randSup) {
-        for (int i = 0; i < height; i++) {
-            List<T> line = matrix.get(i);
-            for (int j = 0; j < width; j++) {
-                line.set(j, randSup.get());
+    public void fill(Supplier<ComplexNum> sup) {
+        for (int y = 0; y < height; y++) {
+            List<ComplexNum> line = matrix.get(y);
+            for (int x = 0; x < width; x++) {
+                line.set(x, sup.get());
             }
         }
     }
 
-    public Matrix<T> sum(Matrix<T> b) {
+    public ComplexNum get(int x, int y) {
+        return matrix.get(y).get(x);
+    }
+
+    public void set(int x, int y, ComplexNum value) {
+        matrix.get(y).set(x, value);
+    }
+
+    public void set(int x, int y, Number value) {
+        matrix.get(y).set(x, new ComplexNum(value.doubleValue(), 0));
+    }
+
+    public Matrix sum(Matrix b) {
         if (this.height != b.height || this.width != b.width) {
             throw new RuntimeException("Matrices have to be same size");
         }
+
+        var copy = clone();
+
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                addAtIndex(x, y, b.get(x, y));
+                copy.addAtIndex(x, y, b.get(x, y));
             }
         }
 
-        return this;
+        return copy;
     }
 
-    public Matrix<T> sub(Matrix<T> b) {
+    private void addAtIndex(int x, int y, ComplexNum value) {
+        matrix.get(y).set(x, get(x, y).sum(value));
+    }
+
+    public Matrix sub(Matrix b) {
         if (this.height != b.height || this.width != b.width) {
             throw new RuntimeException("Matrices have to have same size");
         }
+
+        var copy = clone();
+
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                subAtIndex(x, y, b.get(x, y));
+                copy.subAtIndex(x, y, b.get(x, y));
             }
         }
 
-        return this;
+        return copy;
     }
 
-    public Matrix<T> mult(Matrix<T> b) {
+    private void subAtIndex(int x, int y, ComplexNum value) {
+        matrix.get(y).set(x, get(x, y).sub(value));
+    }
+
+    public Matrix mult(Matrix b) {
         if (this.height != b.width || this.width != b.height) {
             throw new ArithmeticException("Matrices have to have reversed size");
         }
+
+        var copy = clone();
+
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                set(x, y, multAndSumLines(matrix.get(y), b, x));
+                copy.set(x, y, multAndSumLines(matrix.get(y), b, x));
             }
         }
 
-        return this;
+        return copy;
     }
 
-    public Matrix<T> transp() {
+    private ComplexNum multAndSumLines(List<ComplexNum> line, Matrix b, int x) {
+        ComplexNum result = ComplexNum.ZERO;
+        for (int i = 0; i < width; i++) {
+            result = result.sum(line.get(x).mult(b.get(x, i)));
+        }
+
+        return result;
+    }
+
+    public Matrix mult(Number b) {
+        var copy = clone();
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                copy.set(x, y, get(x, y).mult(b.doubleValue()));
+            }
+        }
+
+        return copy;
+    }
+
+    public Matrix mult(ComplexNum b) {
+        var copy = clone();
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                copy.set(x, y, get(x, y).mult(b));
+            }
+        }
+
+        return copy;
+    }
+
+    public Matrix div(Number b) {
+        var copy = clone();
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                copy.set(x, y, get(x, y).div(b.doubleValue()));
+            }
+        }
+
+        return copy;
+    }
+
+    public Matrix div(ComplexNum b) {
+        var copy = clone();
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                copy.set(x, y, get(x, y).div(b));
+            }
+        }
+
+        return copy;
+    }
+
+    public Matrix transp() {
         var newMatrix = createMatrix(height, width);
 
         for (int y = 0; y < height; y++) {
@@ -72,22 +158,55 @@ public class Matrix<T> {
             }
         }
 
-        int temp = height;
-        height = width;
-        width = temp;
+        var res = new Matrix(height, width);
+        res.matrix = newMatrix;
 
-        this.matrix = newMatrix;
-
-        return this;
+        return res;
     }
 
-    private List<List<T>> createMatrix(int width, int height) {
-        var mtrx = new ArrayList<List<T>>();
+    public ComplexNum getDeterminant() {
+        if (width != height) throw new ArithmeticException("The amount of rows and columns are not equal");
+        return calcDeterminant();
+    }
+
+    private ComplexNum calcDeterminant() {
+        if (width == 1 && height == 1) return get(0, 0);
+
+        ComplexNum result = ComplexNum.ZERO;
+
+        for (int i = 0; i < width; i++) {
+            Matrix subMatrix = getSubmatrix(i);
+            ComplexNum part = get(i, 0).mult(subMatrix.getDeterminant());
+            if (i % 2 == 1) {
+                part = ComplexNum.ZERO.sub(part);
+            }
+            result = result.sum(part);
+        }
+
+        return result;
+    }
+
+    private Matrix getSubmatrix(int column) {
+        Matrix res = new Matrix(width - 1, height - 1);
+
+        for (int y = 1; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (x == column) continue;
+
+                res.set(x - (x > column ? 1 : 0), y - 1, get(x, y));
+            }
+        }
+
+        return res;
+    }
+
+    private List<List<ComplexNum>> createMatrix(int width, int height) {
+        var mtrx = new ArrayList<List<ComplexNum>>();
 
         for (int i = 0; i < height; i++) {
-            List<T> line = new ArrayList<>();
+            List<ComplexNum> line = new ArrayList<>();
             for (int j = 0; j < width; j++) {
-                line.add(operator.zero());
+                line.add(ComplexNum.ZERO);
             }
             mtrx.add(line);
         }
@@ -95,39 +214,26 @@ public class Matrix<T> {
         return mtrx;
     }
 
-    private T multAndSumLines(List<T> line, Matrix<T> b, int x) {
-        T result = null;
-        for (int i = 0; i < width; i++) {
-            result = operator.sum(result, operator.mult(line.get(x), b.get(x, i)));
+    @Override
+    protected Matrix clone() {
+        Matrix clone = new Matrix(width, height);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                clone.set(x, y, get(x, y));
+            }
         }
-
-        return result;
-    }
-
-    public T get(int x, int y) {
-        return matrix.get(y).get(x);
-    }
-
-    public void set(int x, int y, T value) {
-        matrix.get(y).set(x, value);
-    }
-
-    private void addAtIndex(int x, int y, T value) {
-        matrix.get(y).set(x, operator.sum(get(x, y), value));
-    }
-
-    private void subAtIndex(int x, int y, T value) {
-        matrix.get(y).set(x, operator.sub(get(x, y), value));
+        return clone;
     }
 
     @Override
     public String toString() {
         var result = new StringBuilder();
-        for(int y = 0; y < height; y++) {
+        for (int y = 0; y < height; y++) {
             result.append('|');
-            for(int x = 0; x < width; x++) {
-                result.append(String.format("%12s,", get(x, y).toString()));
+            for (int x = 0; x < width; x++) {
+                result.append(String.format("%16s,", get(x, y).toString()));
             }
+            result.deleteCharAt(result.length() - 1);
             result.append("|\n");
         }
         return result.toString();
