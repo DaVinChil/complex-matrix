@@ -1,18 +1,22 @@
-import com.sun.nio.sctp.SctpSocketOption;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 public class Matrix {
-    private List<List<ComplexNum>> matrix;
-    private int width;
-    private int height;
+    private final List<List<ComplexNum>> matrix;
+    private final int width;
+    private final int height;
 
     public Matrix(int width, int height) {
         this.width = width;
         this.height = height;
         this.matrix = createMatrix(width, height);
+    }
+
+    public Matrix(int width, int height, List<List<ComplexNum>> matrix) {
+        this.width = width;
+        this.height = height;
+        this.matrix = matrix;
     }
 
     public void fill(Supplier<ComplexNum> sup) {
@@ -106,7 +110,7 @@ public class Matrix {
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                copy.set(x, y, get(x, y).mult(b.doubleValue()));
+                copy.set(x, y, get(x, y).mult(b));
             }
         }
 
@@ -130,7 +134,7 @@ public class Matrix {
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                copy.set(x, y, get(x, y).div(b.doubleValue()));
+                copy.set(x, y, get(x, y).div(b));
             }
         }
 
@@ -158,10 +162,7 @@ public class Matrix {
             }
         }
 
-        var res = new Matrix(height, width);
-        res.matrix = newMatrix;
-
-        return res;
+        return new Matrix(height, width, newMatrix);
     }
 
     public ComplexNum getDeterminant() {
