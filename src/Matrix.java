@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 public class Matrix {
@@ -106,47 +107,27 @@ public class Matrix {
     }
 
     public Matrix mult(Number b) {
-        var copy = clone();
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                copy.set(x, y, get(x, y).mult(b));
-            }
-        }
-
-        return copy;
+        return arithmeticOperation(b, ComplexNum::mult);
     }
 
     public Matrix mult(ComplexNum b) {
-        var copy = clone();
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                copy.set(x, y, get(x, y).mult(b));
-            }
-        }
-
-        return copy;
+        return arithmeticOperation(b, ComplexNum::mult);
     }
 
     public Matrix div(Number b) {
-        var copy = clone();
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                copy.set(x, y, get(x, y).div(b));
-            }
-        }
-
-        return copy;
+        return arithmeticOperation(b, ComplexNum::div);
     }
 
     public Matrix div(ComplexNum b) {
+        return arithmeticOperation(b, ComplexNum::div);
+    }
+
+    private <T> Matrix arithmeticOperation(T value, BiFunction<ComplexNum, T, ComplexNum> operation) {
         var copy = clone();
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                copy.set(x, y, get(x, y).div(b));
+                copy.set(x, y, operation.apply(get(x, y), value));
             }
         }
 
